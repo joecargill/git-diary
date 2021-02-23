@@ -1,3 +1,4 @@
+use std::env;
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
@@ -7,12 +8,14 @@ use chrono::{DateTime, Utc};
 use git2::Repository;
 use git2::{Commit, ObjectType};
 use git2::{Oid, Signature};
-use git2::Direction;
 
 fn main() -> Result<(), git2::Error> { 
 
   let now: DateTime<Utc> = Utc::now();
   let stdin = io::stdin();
+
+  let root = Path::new("/");
+  env::set_current_dir(&root);
 
   println!("Today is {}\n", now.format("%A %d %b %Y"));
   println!("What are you working on today? (Type 'done' to finish)\n");
@@ -27,7 +30,7 @@ fn main() -> Result<(), git2::Error> {
     tasks.push(line);
   }
 
-  let file_path = format!("/Users/joec/logbook/entries/{}.md", now.format("%F")).to_lowercase();
+  let file_path = format!("Users/joec/logbook/entries/{}.md", now.format("%F")).to_lowercase();
   let path = Path::new(&file_path);
   let display = path.display();
 
@@ -42,7 +45,7 @@ fn main() -> Result<(), git2::Error> {
     writeln!(file, " - {}", task);
   };
 
-  let repo = match Repository::open("/Users/joec/logbook") {
+  let repo = match Repository::open("Users/joec/logbook") {
     Ok(repo) => repo,
     Err(e) => panic!("failed to open: {}", e),
   };
@@ -55,11 +58,11 @@ fn main() -> Result<(), git2::Error> {
     commit_msg = format!("{}{}", commit_msg, format!("\n - {}", task));
   };
 
-  let _ = add_and_commit(&repo, &path, &commit_msg).expect("Couldn't add file to repo");
+  let file_to_commit_path = format!("entries/{}.md", now.format("%F")).to_lowercase();
+  let file_to_commit = Path::new(&file_to_commit_path);
+  let _ = add_and_commit(&repo, &file_to_commit, &commit_msg).expect("Couldn't add file to repo");
   
-  let remote_url = "https://github.com/joecargill/logbook.git";
-  println!("Pushing to: {}", remote_url);
-  let _ = push(&repo, remote_url).expect("Couldn't push to remote repo");
+  println!("File added and committed. Ready for push.");
 
   Ok(())
 }
@@ -82,13 +85,4 @@ fn add_and_commit(repo: &Repository, path: &Path, message: &str) -> Result<Oid, 
                 message, // commit message
                 &tree, // tree
                 &[&parent_commit]) // parents
-}
-
-fn push(repo: &Repository, url: &str) -> Result<(), git2::Error> {
-    let mut remote = match repo.find_remote("origin") {
-        Ok(r) => r,
-        Err(_) => repo.remote("origin", url)?,
-    };
-    remote.connect(Direction::Push)?;
-    remote.push(&["refs/heads/master:refs/heads/master"], None)
 }
